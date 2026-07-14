@@ -591,4 +591,142 @@ the free tier by default; advanced users on paid plans can scale up.
 
 ---
 
+## ADR-0013 — Free Source Integration (Google Trends RSS + TikTok Discover + YouTube Data API v3)
+**Date:** 2026-07-13
+**Status:** Accepted
+
+**Context:** Throughout v0.x the project was gatekept by paid third-party
+APIs. After hitting Apify's $39/mo Novi tier, Clockworks' $3.70/1k result
+pricing, and the failure of the Reddit platform path (ADR-0011), we
+re-evaluated the whole "pay for trends" premise.
+
+A direct investigation of public, undocumented endpoints surfaced three
+viable, free-or-freemium sources that cover 80%+ of what the paid tools
+sell:
+
+1. **Google Trends RSS** (`https://trends.google.com/trending/rss?geo={COUNTRY}`)
+   - 10 trending searches per region × 100+ countries
+   - Each item carries: title, traffic bucket ("1000+", "500+", etc.),
+     pubDate, and a list of related news articles
+   - **Zero auth, zero rate limit, zero cost**
+   - The most semantically rich source we have: real human search queries
+     (not hashtags), tied to current events via the news items
+   - Verified live 2026-07-13: returns real data for US, GB, DE, JP, IN, BR
+
+2. **TikTok Discover via GitHub proxy** (`https://raw.githubusercontent.com/antiops/tiktok-trending-data/main/discover-list-{region}.json`)
+   - TikTok's own `/api/discover/item_list/` is anti-bot gated (ADR-0002)
+   - Community repo `antiops/tiktok-trending-data` scrapes it via GitHub
+     Actions every ~6 hours and commits the JSON
+   - We pull the raw JSON from `raw.githubusercontent.com` (CDN-cached, unauthenticated)
+   - Returns hashtags (type=3) and sounds (type=4) per region (us, www, m, t)
+   - **Zero cost, zero auth, zero anti-bot evasion** (we never hit TikTok directly)
+   - Trade-off: data is 6h stale, but the trends themselves are
+     long-lived enough that 6h lag is acceptable for content planning
+
+3. **YouTube Data API v3** (`https://www.googleapis.com/youtube/v3/videos?chart=mostPopular`)
+   - YouTube's HTML trending page is fully JS-hydrated; raw HTML returns
+     "try searching to get started" without a real session cookie
+   - The Data API v3 is the documented, supported, free path
+   - **Free tier: 10,000 quota units/day, 1 unit per call** = 10,000 daily calls
+   - Our default config (6 regions × 1 call × 48 cycles/day) = 288 units/day
+   - Requires a Google Cloud project + YouTube Data API v3 enabled + API key
+   - **Free, no credit card required** for the basic key
+   - Trade-off: opt-in (requires user to set up the key), unlike the
+     other two which just work
+
+**Why we chose these three (and not others):**
+- **arctic-shift.com (Reddit alternative):** DNS ENOTFOUND on the host
+  during investigation. Unreliable even when up — Reddit path remains dead.
+- **YouTube HTML scrape:** Tested. Blocked. Would require Playwright,
+  which breaks our async-event-loop architecture and violates YouTube ToS.
+- **GitHub Trending via Apify:** Could have used the same GitHub-as-CDN
+  pattern, but GitHub Trending is irrelevant to social media trend monitoring.
+- **PyTrends / Google Trends API libraries:** Google deprecated the
+  unofficial Google Trends API in 2022. RSS is the only stable Google path.
+
+**Architectural decisions:**
+
+- **Platform tags:**
+  - Google Trends: `platform="google_trends"`, `trend_type="search"`
+  - TikTok Discover: `platform="tiktok"` (same as user-supplied TikTok
+    oEmbed collector), `metadata["source"]="antiops_github"`
+  - YouTube: `platform="youtube"`, `trend_type="video"`
+  - We share `platform="tiktok"` for both TikTok collectors so cross-platform
+    grouping works. The two collectors are distinguished in
+    `metadata["source"]` and via their `platform_native_id` prefix.
+
+- **Collector design:**
+  - All three follow the existing `BaseCollector` pattern (async, rate-limited,
+    returns `list[Trend]`, never raises on transient errors)
+  - All three are auto-discovered by `CollectorRegistry` — no central dispatch
+  - All three have dedicated test files (15 + 16 + 20 = 51 new tests,
+    123 → 174 total)
+
+- **Default enabled state:**
+  - `google_trends: enabled: true` (works out of the box)
+  - `tiktok_discover: enabled: true` (works out of the box, same platform
+    tag as the existing tiktok collector — they run side by side)
+  - `youtube: enabled: false` (requires user to set up Google Cloud +
+    API key, so opt-in. Set `YOUTUBE_API_KEY` in `.env` and flip the flag.)
+
+- **Schema additions:**
+  - `PLATFORMS += ("google_trends", "youtube")`
+  - `TREND_TYPES += ("search",)` (new type for Google Trends topics)
+  - `video` type already existed and is reused for YouTube
+
+- **BaseCollector helper additions:**
+  - New `get_text()` method for non-JSON endpoints (RSS XML, future HTML)
+  - Mirrors the existing `get_json()` helper exactly
+
+- **Rate limits (config/default.yaml):**
+  - `trends.google.com`: 0.5 req/s (RSS, no documented limit, be polite)
+  - `raw.githubusercontent.com`: 1.0 req/s (CDN, generous)
+  - `www.googleapis.com`: 0.5 req/s (well under the 10k units/day cap)
+
+**Consequences:**
+- Two of three sources require zero user setup (Google Trends + TikTok
+  Discover). This dramatically lowers the bar to "see real trends
+  within 5 minutes of cloning the repo."
+- YouTube adds the third major video surface (after TikTok) without
+  requiring paid scrapers.
+- The Google Trends traffic-bucket score (1-6) is much smaller than
+  the absolute view-count scores from YouTube (millions) or X (thousands).
+  The scorer normalizes across collectors (see `src/scoring/engine.py`),
+  but operators should be aware that cross-platform comparisons are
+  apples-to-oranges by design.
+- The TikTok Discover data is 6h stale. This is acceptable for the
+  v1 use case (content planning) but unsuitable for "breaking trend
+  detection." The v1.1 plan is to add a real-time TikTok path when
+  one becomes available (e.g. an Apify actor on the free tier, or
+  the official Research API once approved).
+- Dependency on a third-party GitHub repo (`antiops/tiktok-trending-data`)
+  for the TikTok Discover path. If that repo goes dark, the discover
+  collector returns empty results, but the existing user-supplied
+  TikTok oEmbed collector is unaffected.
+
+**Alternatives considered:**
+- **Maintain a custom GitHub Action that scrapes TikTok and commits JSON**
+  — rejected: we don't want to operate a separate scraping pipeline.
+  antiops already does this and we get the same result for free.
+- **Use the Apify `clockworks~tiktok-scraper` actor on the free tier**
+  — rejected: $3.70/1k results adds up fast and is still cheaper than
+  Novi's $39/mo, but it's not free. Reserved as a v1.1 escape hatch.
+- **Skip YouTube entirely** — rejected: YouTube is one of the four
+  core platforms the README advertises. Adding it via the official
+  free Data API is strictly better than dropping it.
+
+**Implementation:**
+- `src/collectors/platforms/google_trends.py` — `GoogleTrendsCollector`
+- `src/collectors/platforms/tiktok_discover.py` — `TikTokDiscoverCollector`
+- `src/collectors/platforms/youtube.py` — `YouTubeTrendingCollector`
+- `src/collectors/base.py` — added `get_text()` helper
+- `src/normalizer/schema.py` — added `google_trends`, `youtube` to PLATFORMS
+  and `search` to TREND_TYPES
+- `config/default.yaml` — added 3 new blocks + rate-limit entries
+- Tests: 51 new tests across 3 files (15 + 16 + 20)
+- Live verified: 51 Google Trends trends + 18 TikTok trends in a single
+  end-to-end `collect` cycle on 2026-07-13
+
+---
+
 *End of decision log. Add new ADRs at the bottom, never rewrite above.*

@@ -34,6 +34,12 @@ def test_orchestrator_writes_to_storage(tmp_path: Path):
     cfg.collectors.setdefault("apify", CollectorConfig(enabled=False))
     cfg.collectors["reddit"].enabled = False
     cfg.collectors["apify"].enabled = False
+    # New platforms (Google Trends, YouTube) — disable for this fixture.
+    # See ADR-0013. They are enabled by default in default.yaml for real runs.
+    cfg.collectors.setdefault("google_trends", CollectorConfig(enabled=False))
+    cfg.collectors.setdefault("youtube", CollectorConfig(enabled=False))
+    cfg.collectors["google_trends"].enabled = False
+    cfg.collectors["youtube"].enabled = False
     cfg.collector_options["tiktok"] = {"hashtags": ["test"]}
 
     # Stub the TikTok collector to skip the network

@@ -1,10 +1,11 @@
 # Social Trend Monitor
 
-> **Status:** v0.3 alpha — v1 + LLM format extraction, FastAPI read API,
+> **Status:** v0.4 alpha — v1 + LLM format extraction, FastAPI read API,
 > semantic cross-platform grouping, **Reddit collector (deferred — platform gate)**,
-> **Apify vendor bridge for TikTok + Instagram (opt-in)**. 123/123 tests
-> passing. TikTok collector is still v1-limited (user-supplied hashtags,
-> no discovery) due to platform anti-bot gating. See ADR-0002.
+> **Apify vendor bridge for TikTok + Instagram (opt-in)**,
+> **3 new free sources: Google Trends RSS, TikTok Discover (via GitHub proxy),
+> YouTube Data API v3**. 174/174 tests passing. See ADR-0013 for the
+> free-source integration. Reddit and Apify remain opt-in.
 
 A safe, multi-platform **Social Trend Monitor** that identifies trending
 topics, formats, and high-performing content styles across TikTok,
@@ -55,7 +56,10 @@ choice. Highlights:
 | Platform | v1 Status | Source |
 |----------|-----------|--------|
 | **TikTok** | Partial (user-supplied only) | Public oEmbed + user hashtag list. Research API for v2. Apify bridge for opt-in discovery. |
+| **TikTok Discover** | **NEW (free)** — real trending | Community-scraped JSON via `antiops/tiktok-trending-data` GitHub repo. Refreshed every 6h. ADR-0013. |
 | **X**       | Full discovery (paid API) | `GET /2/trends/by/woeid/:woeid` — bearer token required. |
+| **Google Trends** | **NEW (free)** — always on | Public RSS feed (`trends.google.com/trending/rss?geo=...`). 10 trends × 100+ countries. No auth. ADR-0013. |
+| **YouTube** | **NEW (opt-in)** — free 10k units/day | Data API v3 `videos?chart=mostPopular`. Needs `YOUTUBE_API_KEY`. ADR-0013. |
 | **Instagram** | Public post metadata only | oEmbed for user-supplied URLs. Apify bridge for opt-in discovery. |
 | **Facebook** | Optional (your own pages) | Graph API with page tokens. No public discovery. |
 | **Reddit** | **DEFERRED** — code shipped, platform-gated | See ADR-0011 "Revised status". |
@@ -78,6 +82,21 @@ immediately the moment a path opens. Full analysis: **ADR-0011
 3. Set `APIFY_TOKEN` in your `.env`
 4. Edit config: `collectors.apify.enabled: true`
 5. Cost guards are on by default (`monthly_cap_usd: 4.0`, `per_cycle_cap_usd: 0.10`) so the collector stops itself if the free tier would be exceeded.
+
+**YouTube setup (one-time, optional):**
+1. Go to https://console.cloud.google.com → New Project
+2. APIs & Services → Library → search "YouTube Data API v3" → Enable
+3. APIs & Services → Credentials → Create Credentials → API key
+4. Copy the key (starts with `AIza…`)
+5. Set `YOUTUBE_API_KEY=AIza…` in your `.env`
+6. Edit config: `collectors.youtube.enabled: true`
+7. Free tier is 10,000 units/day. Each `mostPopular` call costs 1 unit.
+   Our default (6 regions × 48 cycles/day) = 288 units/day — well under cap.
+
+**Free sources that work out of the box:**
+- `google_trends` — enabled by default, no setup needed
+- `tiktok_discover` — enabled by default, no setup needed (shares the
+  `tiktok` platform tag with the existing user-supplied TikTok collector)
 
 **Ethics posture (strict):**
 

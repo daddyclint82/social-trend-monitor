@@ -22,6 +22,8 @@ PLATFORMS: tuple[str, ...] = (
     "facebook",
     "reddit",
     "apify",
+    "google_trends",  # Free RSS feed. No auth, no rate limit. ADR-0013.
+    "youtube",        # Free trending HTML scrape. No auth. ADR-0013.
 )
 TREND_TYPES: tuple[str, ...] = (
     "hashtag",
@@ -32,6 +34,7 @@ TREND_TYPES: tuple[str, ...] = (
     "video",
     "subreddit",
     "post",
+    "search",  # Google Trends topic. ADR-0013.
 )
 
 

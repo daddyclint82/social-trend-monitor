@@ -129,3 +129,52 @@ class BaseCollector(ABC):
         except (ValueError, TypeError) as e:
             logger.warning("collector.parse_error", platform=self.platform, error=str(e))
             return None
+
+    async def get_text(
+        self,
+        url: str,
+        *,
+        params: dict | None = None,
+        headers: dict | None = None,
+    ) -> str | None:
+        """Rate-limited GET that returns response text.
+
+        For non-JSON endpoints (RSS, HTML scraping). Returns None on non-2xx.
+        Caller is responsible for parsing. Handles 429 via limiter.
+        """
+        await self.limiter.acquire(url)
+        merged_headers = {
+            "User-Agent": self.user_agent,
+            "Accept": "application/xml, text/xml, application/rss+xml, */*",
+        }
+        if headers:
+            merged_headers.update(headers)
+        try:
+            resp = await self.http.get(
+                url, params=params, headers=merged_headers, timeout=self.timeout_s
+            )
+        except httpx.HTTPError as e:
+            logger.warning("collector.http_error", platform=self.platform, url=url, error=str(e))
+            return None
+
+        if resp.status_code == 429:
+            retry_after = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
+            self.limiter.apply_retry_after(url, retry_after)
+            logger.warning(
+                "collector.rate_limited",
+                platform=self.platform,
+                url=url,
+                retry_after=retry_after,
+            )
+            return None
+
+        if resp.status_code >= 400:
+            logger.warning(
+                "collector.http_status",
+                platform=self.platform,
+                url=url,
+                status=resp.status_code,
+            )
+            return None
+
+        return resp.text

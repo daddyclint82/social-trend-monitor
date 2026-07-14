@@ -25,6 +25,15 @@ collectors:
   apify:
     enabled: false  # disabled by default — vendor dep + free tier limits (ADR-0012)
     poll_interval_min: 240  # 4h default — actors are slow + cost-guard friendly
+  google_trends:
+    # Free, no auth, no rate limit. See ADR-0013.
+    enabled: true
+    poll_interval_min: 30   # 30min — Google refreshes ~hourly, more is wasteful
+  youtube:
+    # Free Data API v3 (10k quota units/day, 1 unit/call). See ADR-0013.
+    # Requires YOUTUBE_API_KEY in .env — opt-in: leave disabled if no key.
+    enabled: false
+    poll_interval_min: 30
 
 # Per-collector options (passed to the collector's __init__)
 collector_options:
@@ -78,6 +87,18 @@ collector_options:
     #   - actor_id: "clockworks~tiktok-scraper"
     #     source_platform: tiktok
     #     description: "Generic TikTok scraper"
+  google_trends:
+    # ADR-0013: free RSS feed, no auth.
+    geos: ["US", "GB", "DE", "JP", "IN", "BR"]   # ISO 3166-1 alpha-2 country codes
+    min_traffic: 1   # 1=include all buckets, 6=only "1000+" peaks
+  youtube:
+    # ADR-0013: YouTube Data API v3, free 10k units/day.
+    # Setup: https://console.cloud.google.com → enable YouTube Data API v3
+    #        → create API key → set YOUTUBE_API_KEY in .env
+    api_key_env: YOUTUBE_API_KEY
+    regions: ["US", "GB", "DE", "JP", "IN", "BR"]
+    max_results: 25        # max 50 (API cap)
+    category_id: ""        # empty = all categories. Examples: 10=Music, 20=Gaming, 24=Entertainment
     #     input: { hashtags: ["fyp"], resultsPerPage: 20, shouldDownloadVideos: false }
     #     item_mapper: tiktok_post
     #   - actor_id: "apify~instagram-scraper"
@@ -112,6 +133,15 @@ rate_limits:
     api.apify.com:
       rate: 0.2      # 1 req per 5s — we don't need speed, we're cost-constrained
       burst: 3
+    trends.google.com:
+      rate: 0.5      # 1 req per 2s — RSS, no documented limit; be polite
+      burst: 5
+    raw.githubusercontent.com:
+      rate: 1.0      # 1 req per second — GitHub raw is CDN, generous
+      burst: 5
+    www.googleapis.com:
+      rate: 0.5      # 1 req per 2s — well under the 10k units/day cap
+      burst: 5
   jitter_pct: 0.5
 
 storage:
