@@ -1,0 +1,13 @@
+httpx>=0.27,<1.0
+httpx[http2]>=0.27
+pydantic>=2.6,<3.0
+pydantic-settings>=2.2
+PyYAML>=6.0
+structlog>=24.1
+selectolax>=0.3.21
+fastapi>=0.110
+uvicorn[standard]>=0.27
+numpy>=1.26
+# Optional:
+# scikit-learn>=1.4  # for clustering if needed beyond cosine
+# ollama>=0.1.6      # if you prefer the ollama python lib over httpx

@@ -1,0 +1,50 @@
+# local-test config — used for development only
+# Copy to local.yaml and edit for your environment
+collectors:
+  tiktok:
+    enabled: true
+  x:
+    enabled: true
+  instagram:
+    enabled: false
+  facebook:
+    enabled: false
+
+collector_options:
+  tiktok:
+    hashtags: ["aiart", "booktok", "fyp", "foryou", "learnontiktok"]
+    creator_urls: []
+  x:
+    woeids: [1, 23424977]
+    bearer_token_env: X_BEARER_TOKEN  # set in env, never commit
+  instagram:
+    urls: []
+  facebook:
+    page_tokens_env: FB_PAGE_TOKENS
+
+rate_limits:
+  default:
+    rate: 0.2
+    burst: 5
+  per_host:
+    ads.tiktok.com: { rate: 0.1, burst: 3 }
+    api.x.com: { rate: 0.5, burst: 5 }
+    graph.facebook.com: { rate: 0.5, burst: 5 }
+    api.instagram.com: { rate: 0.5, burst: 5 }
+    www.tiktok.com: { rate: 0.5, burst: 5 }
+  jitter_pct: 0.5
+
+storage:
+  db_path: ./data/trends.db
+  retention_days: 60
+
+llm:
+  enabled: false
+  base_url: http://localhost:11434
+  model: llama3.1:8b
+  format_extraction_interval_h: 6
+
+logging:
+  level: INFO
+  json: true
+  path: ./logs/social-trend-monitor.log

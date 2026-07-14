@@ -1,0 +1,125 @@
+# Social Trend Monitor — default config
+# Edit this file or override via env vars (see .env.example)
+
+collectors:
+  tiktok:
+    enabled: true
+    poll_interval_min: 15
+  x:
+    enabled: true
+    poll_interval_min: 15
+  instagram:
+    enabled: false  # disabled by default — needs user-supplied URLs
+    poll_interval_min: 60
+  facebook:
+    enabled: false  # disabled by default — needs page tokens
+    poll_interval_min: 60
+  reddit:
+    enabled: false  # disabled by default — needs Reddit script app creds (ADR-0011)
+    poll_interval_min: 30
+  apify:
+    enabled: false  # disabled by default — vendor dep + free tier limits (ADR-0012)
+    poll_interval_min: 240  # 4h default — actors are slow + cost-guard friendly
+
+# Per-collector options (passed to the collector's __init__)
+collector_options:
+  tiktok:
+    # User-supplied list — we track *given* hashtags, not discovered ones
+    # (TikTok's discovery API is anti-bot gated, see ADR-0002)
+    hashtags: ["aiart", "booktok", "fyp", "foryou", "learnontiktok"]
+    creator_urls: []
+  x:
+    woeids: [1, 23424977, 23424975, 23424768, 23424856, 23424819]
+    bearer_token_env: X_BEARER_TOKEN
+  instagram:
+    urls: []   # user-supplied: list of public post URLs
+  facebook:
+    page_tokens_env: FB_PAGE_TOKENS
+    limit: 25
+  reddit:
+    # OAuth client_credentials via Reddit script app (free).
+    # Create one: https://www.reddit.com/prefs/apps (type "script")
+    # Then set REDDIT_CLIENT_ID and REDDIT_SECRET in .env
+    client_id_env: REDDIT_CLIENT_ID
+    client_secret_env: REDDIT_SECRET
+    feeds: ["/r/all/hot", "/r/popular"]
+    niche_subreddits:
+      - technology
+      - programming
+      - artificial
+      - marketing
+      - socialmedia
+      - YouTubers
+      - TikTok
+      - Instagram
+      - podcasting
+      - design
+      - photography
+      - futurology
+    max_posts_per_listing: 25
+    max_age_minutes: 1440  # skip posts older than 24h
+  apify:
+    # Apify free tier = $5/month in compute units (ADR-0012).
+    # Set APIFY_TOKEN in .env. Cost guards prevent blowout.
+    token_env: APIFY_TOKEN
+    monthly_cap_usd: 4.0   # buffer under the $5 cap
+    per_cycle_cap_usd: 0.10
+    min_interval_hours: 4
+    max_items_per_actor: 100
+    timeout_s: 240
+    actors: []   # use defaults from the collector (TikTok + Instagram)
+    # To override defaults, uncomment and edit:
+    # actors:
+    #   - actor_id: "clockworks~tiktok-scraper"
+    #     source_platform: tiktok
+    #     description: "Generic TikTok scraper"
+    #     input: { hashtags: ["fyp"], resultsPerPage: 20, shouldDownloadVideos: false }
+    #     item_mapper: tiktok_post
+    #   - actor_id: "apify~instagram-scraper"
+    #     source_platform: instagram
+    #     description: "Generic Instagram scraper"
+    #     input: { usernames: ["instagram"], resultsLimit: 20 }
+    #     item_mapper: instagram_post
+
+rate_limits:
+  default:
+    rate: 0.2        # 1 request per 5 seconds
+    burst: 5
+  per_host:
+    ads.tiktok.com:
+      rate: 0.1      # 1 request per 10 seconds — extra polite
+      burst: 3
+    api.x.com:
+      rate: 0.5      # 1 request per 2 seconds — well under their limit
+      burst: 5
+    graph.facebook.com:
+      rate: 0.5
+      burst: 5
+    api.instagram.com:
+      rate: 0.5
+      burst: 5
+    oauth.reddit.com:
+      rate: 0.66     # ~40 req/min — half of Reddit's 100 req/min limit
+      burst: 5
+    www.reddit.com:
+      rate: 0.66     # token endpoint — same host, same bucket
+      burst: 5
+    api.apify.com:
+      rate: 0.2      # 1 req per 5s — we don't need speed, we're cost-constrained
+      burst: 3
+  jitter_pct: 0.5
+
+storage:
+  db_path: ./data/trends.db
+  retention_days: 60
+
+llm:
+  enabled: false   # turn on to extract format/style via local Ollama
+  base_url: http://localhost:11434
+  model: llama3.1:8b
+  format_extraction_interval_h: 6
+
+logging:
+  level: INFO
+  json: true
+  path: ./logs/social-trend-monitor.log
