@@ -336,7 +336,7 @@ def test_format_extraction_to_dict():
         why_it_works="engaging",
         raw_response="...",
         extracted_at="2026-07-13T22:00:00+00:00",
-        model="llama3.1:8b",
+        model="qwen3.5:latest",
     )
     d = fe.to_dict()
     assert d["format_summary"] == "POV video"
@@ -359,7 +359,7 @@ def test_format_extraction_to_dict_search_type():
         why_it_works="",
         raw_response="",
         extracted_at="2026-07-13T22:00:00+00:00",
-        model="llama3.1:8b",
+        model="qwen3.5:latest",
     )
     d = fe.to_dict()
     assert d["trend_type"] == "search"

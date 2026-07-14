@@ -45,7 +45,7 @@ class StorageConfig(BaseModel):
 class LLMConfig(BaseModel):
     enabled: bool = False
     base_url: str = "http://localhost:11434"
-    model: str = "llama3.1:8b"
+    model: str = "qwen3.5:latest"
     format_extraction_interval_h: int = 6
 
 

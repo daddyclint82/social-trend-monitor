@@ -162,7 +162,7 @@ class LLMFormatExtractor:
     Usage:
         extractor = LLMFormatExtractor(
             base_url="http://localhost:11434",
-            model="llama3.1:8b",
+            model="qwen3.5:latest",
         )
         result = await extractor.extract(
             trend_id="tiktok_oembed:abc",
@@ -178,7 +178,7 @@ class LLMFormatExtractor:
     def __init__(
         self,
         base_url: str = "http://localhost:11434",
-        model: str = "llama3.1:8b",
+        model: str = "qwen3.5:latest",
         timeout_s: float = 60.0,
         cache: dict[str, FormatExtraction] | None = None,
     ) -> None:
@@ -344,7 +344,17 @@ class LLMFormatExtractor:
         )
 
     async def _call_ollama(self, prompt: str) -> str:
-        """Call Ollama's /api/generate endpoint."""
+        """Call Ollama's /api/generate endpoint.
+
+        Notes:
+        - `think: false` disables qwen3.5's chain-of-thought mode. Without
+          this, qwen3.5 generates hundreds of "thinking" tokens before
+          the actual answer, blowing latency from ~3s to ~15s+ per call
+          with no quality benefit on extraction-style tasks. Llama models
+          ignore the flag.
+        - `num_predict: 200` caps the response length so a runaway
+          generation can't pin the timeout.
+        """
         try:
             async with httpx.AsyncClient(timeout=self.timeout_s) as http:
                 resp = await http.post(
@@ -353,9 +363,11 @@ class LLMFormatExtractor:
                         "model": self.model,
                         "prompt": prompt,
                         "stream": False,
+                        "think": False,
                         "options": {
                             "temperature": 0.3,  # low temp for factual summary
                             "top_p": 0.9,
+                            "num_predict": 200,
                         },
                     },
                 )

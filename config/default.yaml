@@ -169,7 +169,7 @@ storage:
 llm:
   enabled: false   # turn on to extract format/style via local Ollama
   base_url: http://localhost:11434
-  model: llama3.1:8b
+  model: qwen3.5:latest
   format_extraction_interval_h: 6
 
 logging:
