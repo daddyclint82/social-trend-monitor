@@ -2,9 +2,21 @@
 # Edit this file or override via env vars (see .env.example)
 
 collectors:
-  tiktok:
+  # Two independent TikTok collectors as of 2026-07-13 — see ADR-0014.
+  # Both share the "tiktok" brand but are distinct data sources and
+  # had to be namespaced to stop the registry from shadowing one with
+  # the other.
+  tiktok_oembed:
+    # User-supplied hashtags/creators via public oEmbed endpoint.
+    # Tracks *given* hashtags, doesn't discover new ones (ADR-0002).
     enabled: true
     poll_interval_min: 15
+  tiktok_discover:
+    # Community-scraped trending list via antiops/tiktok-trending-data
+    # GitHub repo (refreshed every ~6h by their Action). Free, no auth.
+    # See ADR-0013.
+    enabled: true
+    poll_interval_min: 360  # 6h — matches upstream refresh cadence
   x:
     enabled: true
     poll_interval_min: 15
@@ -37,11 +49,17 @@ collectors:
 
 # Per-collector options (passed to the collector's __init__)
 collector_options:
-  tiktok:
+  tiktok_oembed:
     # User-supplied list — we track *given* hashtags, not discovered ones
     # (TikTok's discovery API is anti-bot gated, see ADR-0002)
     hashtags: ["aiart", "booktok", "fyp", "foryou", "learnontiktok"]
     creator_urls: []
+  tiktok_discover:
+    # GitHub-as-CDN for the gated TikTok discover endpoint. See ADR-0013.
+    regions: ["us", "www"]
+    github_repo: "antiops/tiktok-trending-data"
+    github_branch: "main"
+    timeout_s: 30
   x:
     woeids: [1, 23424977, 23424975, 23424768, 23424856, 23424819]
     bearer_token_env: X_BEARER_TOKEN

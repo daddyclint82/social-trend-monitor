@@ -67,12 +67,13 @@ _TYPE_SOUND = 4
 class TikTokDiscoverCollector(BaseCollector):
     """Pull discoverList from antiops/tiktok-trending-data.
 
-    Platform tag is "tiktok" so trends group with the existing user-supplied
-    TikTok collector in cross-platform joins. The source is recorded in
-    metadata["source"] = "antiops_github" so the read API can distinguish.
+    Platform tag is "tiktok_discover" — kept distinct from "tiktok_oembed"
+    so DB filters can separate user-supplied watchlists from community
+    trending data. Cross-platform grouping still works because both
+    platforms normalize through the same name-canonicalization.
     """
 
-    platform = "tiktok"
+    platform = "tiktok_discover"
     timeout_s = 30.0
 
     async def collect(self) -> list[Trend]:
@@ -143,7 +144,7 @@ class TikTokDiscoverCollector(BaseCollector):
         # native_id includes region so different regions produce different ids
         native_id = f"{region}:{link}"
         return make_trend(
-            platform="tiktok",
+            platform="tiktok_discover",
             name=display_name,
             trend_type=trend_type,
             platform_native_id=native_id,

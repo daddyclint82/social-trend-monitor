@@ -24,7 +24,8 @@ def test_orchestrator_writes_to_storage(tmp_path: Path):
     # Build a minimal config
     cfg = load_config()
     cfg.storage.db_path = str(db_path)
-    cfg.collectors["tiktok"].enabled = True
+    cfg.collectors["tiktok_oembed"].enabled = True
+    cfg.collectors["tiktok_discover"].enabled = False
     cfg.collectors["x"].enabled = False
     cfg.collectors["instagram"].enabled = False
     cfg.collectors["facebook"].enabled = False
@@ -40,7 +41,7 @@ def test_orchestrator_writes_to_storage(tmp_path: Path):
     cfg.collectors.setdefault("youtube", CollectorConfig(enabled=False))
     cfg.collectors["google_trends"].enabled = False
     cfg.collectors["youtube"].enabled = False
-    cfg.collector_options["tiktok"] = {"hashtags": ["test"]}
+    cfg.collector_options["tiktok_oembed"] = {"hashtags": ["test"]}
 
     # Stub the TikTok collector to skip the network
     class StubTikTok(TikTokOEmbedCollector):
@@ -48,7 +49,7 @@ def test_orchestrator_writes_to_storage(tmp_path: Path):
             from src.normalizer.schema import make_trend
             return [
                 make_trend(
-                    platform="tiktok", name="#test", trend_type="hashtag",
+                    platform="tiktok_oembed", name="#test", trend_type="hashtag",
                     platform_native_id="1", url="https://example.com",
                     score=100.0,
                 ),
@@ -60,7 +61,7 @@ def test_orchestrator_writes_to_storage(tmp_path: Path):
 
     def stub_discover(self):
         real_discover(self)
-        self._classes["tiktok"] = StubTikTok
+        self._classes["tiktok_oembed"] = StubTikTok
 
     registry_mod.CollectorRegistry.discover = stub_discover
 
@@ -68,7 +69,7 @@ def test_orchestrator_writes_to_storage(tmp_path: Path):
         orch = Orchestrator(cfg, storage)
         result = asyncio.run(orch.run_cycle())
         assert result["total_items"] >= 1
-        trends = storage.list_trends(platform="tiktok")
+        trends = storage.list_trends(platform="tiktok_oembed")
         assert any(t["name"] == "#test" for t in trends)
     finally:
         registry_mod.CollectorRegistry.discover = real_discover

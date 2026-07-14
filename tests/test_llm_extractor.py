@@ -75,7 +75,7 @@ def test_build_prompt_hashtag_includes_name():
     because the extract() method has the alias, but _build_prompt takes `name`."""
     extractor = LLMFormatExtractor()
     prompt = extractor._build_prompt(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="#aiart",
         trend_type="hashtag",
         post_descriptions=["AI sunset painting", "AI portrait video"],
@@ -99,7 +99,7 @@ def test_build_prompt_sound_includes_sound_label():
     """Sound prompt uses 'Sound:' label, not 'Hashtag:'."""
     extractor = LLMFormatExtractor()
     prompt = extractor._build_prompt(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="Quinceañera - Banda Machos",
         trend_type="sound",
         post_descriptions=["Wedding dance", "Birthday slideshow"],
@@ -168,7 +168,7 @@ def test_build_prompt_handles_missing_context():
 def test_build_prompt_handles_empty_descriptions():
     extractor = LLMFormatExtractor()
     prompt = extractor._build_prompt(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="#fyp",
         trend_type="hashtag",
         post_descriptions=[],
@@ -182,7 +182,7 @@ def test_build_prompt_falls_back_to_hashtag_for_unknown_type():
     """Unknown trend_type falls back to the hashtag prompt (safe default)."""
     extractor = LLMFormatExtractor()
     prompt = extractor._build_prompt(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="weird",
         trend_type="alien_megastructure",
         post_descriptions=[],
@@ -196,7 +196,7 @@ def test_build_prompt_truncates_descriptions_to_10():
     extractor = LLMFormatExtractor()
     descs = [f"desc {i}" for i in range(20)]
     prompt = extractor._build_prompt(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="#x",
         trend_type="hashtag",
         post_descriptions=descs,
@@ -215,7 +215,7 @@ async def test_extract_accepts_hashtag_kwarg_as_alias():
     extractor = LLMFormatExtractor(base_url="http://localhost:99999")
     result = await extractor.extract(
         trend_id="tiktok:abc",
-        platform="tiktok",
+        platform="tiktok_oembed",
         hashtag="#legacy",
         post_descriptions=["d1"],
     )
@@ -256,7 +256,7 @@ async def test_ollama_unavailable_returns_placeholder():
     extractor = LLMFormatExtractor(base_url="http://localhost:99999")
     result = await extractor.extract(
         trend_id="tiktok:abc",
-        platform="tiktok",
+        platform="tiktok_oembed",
         hashtag="#test",
         post_descriptions=["desc 1", "desc 2"],
     )
@@ -287,7 +287,7 @@ async def test_cache_returns_cached_result():
     key = extractor._cache_key("tiktok:abc")
     cached_result = FormatExtraction(
         trend_id="tiktok:abc",
-        platform="tiktok",
+        platform="tiktok_oembed",
         hashtag="#test",
         trend_type="hashtag",  # NEW: required field
         format_summary="Cached format",
@@ -301,7 +301,7 @@ async def test_cache_returns_cached_result():
 
     result = await extractor.extract(
         trend_id="tiktok:abc",
-        platform="tiktok",
+        platform="tiktok_oembed",
         hashtag="#test",
         post_descriptions=["desc"],
     )

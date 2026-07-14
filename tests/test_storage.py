@@ -19,7 +19,7 @@ def storage(tmp_path: Path) -> Storage:
 
 def test_upsert_and_list(storage: Storage):
     t = make_trend(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="#aiart",
         trend_type="hashtag",
         platform_native_id="42",
@@ -27,7 +27,7 @@ def test_upsert_and_list(storage: Storage):
         score=1234.0,
     )
     storage.upsert_trend(t)
-    rows = storage.list_trends(platform="tiktok")
+    rows = storage.list_trends(platform="tiktok_oembed")
     assert len(rows) == 1
     assert rows[0]["name"] == "#aiart"
     assert rows[0]["latest_score"] == 1234.0
@@ -61,11 +61,11 @@ def test_upsert_updates_existing(storage: Storage):
 def test_record_run(storage: Storage):
     now = datetime.now(tz=timezone.utc)
     rid = storage.record_run(
-        platform="tiktok", started_at=now, finished_at=now,
+        platform="tiktok_oembed", started_at=now, finished_at=now,
         status="success", items_collected=42,
     )
     assert rid > 0
-    last = storage.last_run("tiktok")
+    last = storage.last_run("tiktok_oembed")
     assert last is not None
     assert last["status"] == "success"
     assert last["items_collected"] == 42
@@ -87,7 +87,7 @@ def test_list_trends_filter_by_trend_type(storage: Storage):
     # Insert 3 different trend types
     for name, ttype in [("#hashtag1", "hashtag"), ("topic1", "search"), ("video1", "video")]:
         t = make_trend(
-            platform="tiktok" if ttype == "hashtag" else ("google_trends" if ttype == "search" else "youtube"),
+            platform="tiktok_oembed" if ttype == "hashtag" else ("google_trends" if ttype == "search" else "youtube"),
             name=name,
             trend_type=ttype,
             platform_native_id=f"{ttype}:{name}",
@@ -146,7 +146,7 @@ def test_list_trends_parses_metadata_json(storage: Storage):
 def test_list_trends_handles_missing_metadata_json(storage: Storage):
     """A trend with empty metadata doesn't crash the parser."""
     t = make_trend(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="#fyp",
         trend_type="hashtag",
         platform_native_id="fyp:1",
@@ -154,7 +154,7 @@ def test_list_trends_handles_missing_metadata_json(storage: Storage):
         score=0.0,
     )
     storage.upsert_trend(t)
-    rows = storage.list_trends(platform="tiktok")
+    rows = storage.list_trends(platform="tiktok_oembed")
     assert len(rows) == 1
     assert rows[0]["metadata"] == {}
 
@@ -167,7 +167,7 @@ def test_list_trends_handles_corrupt_metadata_json(storage: Storage):
         pass
     # Use the public API to insert a valid row, then corrupt it via direct SQL
     t = make_trend(
-        platform="tiktok",
+        platform="tiktok_oembed",
         name="#x",
         trend_type="hashtag",
         platform_native_id="x:1",
@@ -182,7 +182,7 @@ def test_list_trends_handles_corrupt_metadata_json(storage: Storage):
             "UPDATE trends SET metadata_json = ? WHERE id = ?",
             ("NOT VALID JSON", t.id),
         )
-    rows = storage.list_trends(platform="tiktok")
+    rows = storage.list_trends(platform="tiktok_oembed")
     # Should not raise; metadata should be empty dict on fallback
     assert len(rows) == 1
     assert rows[0]["metadata"] == {}

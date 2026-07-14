@@ -68,9 +68,26 @@ async def _cmd_collect(args: argparse.Namespace) -> int:
         storage.close()
 
 
+async def _default_serve_interval(cfg) -> int:
+    """Pick a sensible default for the serve loop interval.
+
+    Use the shortest enabled poll_interval so we don't miss anything.
+    Falls back to 15 minutes (the historical tiktok default) if nothing
+    is enabled.
+    """
+    enabled_intervals = [
+        c.poll_interval_min
+        for c in cfg.collectors.values()
+        if getattr(c, "enabled", False) and getattr(c, "poll_interval_min", None)
+    ]
+    if not enabled_intervals:
+        return 900
+    return max(60, min(enabled_intervals))
+
+
 async def _cmd_serve(args: argparse.Namespace) -> int:
     orch, cfg, storage = _make_orchestrator()
-    interval = max(60, args.interval) if args.interval else cfg.collectors.get("tiktok", type("X", (), {"poll_interval_min": 900})()).poll_interval_min
+    interval = max(60, args.interval) if args.interval else _default_serve_interval(cfg)
     try:
         while True:
             started = datetime.now(tz=timezone.utc)
@@ -438,7 +455,8 @@ def main(argv: list[str] | None = None) -> int:
     p_list.add_argument(
         "--platform",
         choices=(
-            "tiktok", "x", "instagram", "facebook",
+            "tiktok_oembed", "tiktok_discover",
+            "x", "instagram", "facebook",
             "google_trends", "youtube", "reddit", "apify",
         ),
     )
@@ -456,7 +474,7 @@ def main(argv: list[str] | None = None) -> int:
     p_health.set_defaults(func=_cmd_health, is_async=False)
 
     p_inspect = sub.add_parser("inspect", help="Hit one platform once and show raw results")
-    p_inspect.add_argument("--platform", required=True, choices=("tiktok", "x", "instagram", "facebook"))
+    p_inspect.add_argument("--platform", required=True, choices=("tiktok_oembed", "tiktok_discover", "x", "instagram", "facebook"))
     p_inspect.set_defaults(func=_cmd_inspect, is_async=False)
 
     p_api = sub.add_parser("serve-api", help="Start the FastAPI read API")
@@ -474,7 +492,8 @@ def main(argv: list[str] | None = None) -> int:
     p_llm.add_argument(
         "--platform",
         choices=(
-            "tiktok", "x", "instagram", "facebook",
+            "tiktok_oembed", "tiktok_discover",
+            "x", "instagram", "facebook",
             "google_trends", "youtube", "reddit", "apify",
         ),
         help="Filter trends to a specific platform. Default: all.",

@@ -165,8 +165,8 @@ class LLMFormatExtractor:
             model="llama3.1:8b",
         )
         result = await extractor.extract(
-            trend_id="tiktok:abc",
-            platform="tiktok",
+            trend_id="tiktok_oembed:abc",
+            platform="tiktok_oembed",
             name="#aiart",
             trend_type="hashtag",
             post_descriptions=["AI-generated painting", ...],

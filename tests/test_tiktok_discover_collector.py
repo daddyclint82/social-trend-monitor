@@ -71,8 +71,12 @@ def _make_collector(regions=None):
 
 
 def test_platform_constant():
-    """Both tiktok collectors share the platform key — that's the point."""
-    assert TikTokDiscoverCollector.platform == "tiktok"
+    """The two tiktok collectors use distinct platform keys (ADR-0014)."""
+    assert TikTokDiscoverCollector.platform == "tiktok_discover"
+    # And it should be distinct from the oembed collector's key
+    from src.collectors.platforms.tiktok import TikTokOEmbedCollector
+    assert TikTokOEmbedCollector.platform == "tiktok_oembed"
+    assert TikTokOEmbedCollector.platform != TikTokDiscoverCollector.platform
 
 
 def test_default_regions():
@@ -89,7 +93,7 @@ def test_item_to_trend_hashtag():
     }
     t = TikTokDiscoverCollector._item_to_trend(item, region="us")
     assert t is not None
-    assert t.platform == "tiktok"
+    assert t.platform == "tiktok_discover"
     assert t.trend_type == "hashtag"
     assert t.name == "#aiart"
     assert t.url == "https://www.tiktok.com/tag/aiart"

@@ -15,8 +15,13 @@ from typing import Any
 # Canonical platform identifiers. Add a new one when you add a collector.
 # - "apify" is a vendor bridge; trends it produces carry their source platform
 #   in metadata["source_platform"] so cross-platform grouping still works.
+# - "tiktok_oembed" / "tiktok_discover" are the two independent TikTok
+#   collectors (user-supplied hashtags vs community-scraped trending list).
+#   They used to share platform="tiktok" but that caused registry collisions
+#   and made it impossible to filter the DB by source.
 PLATFORMS: tuple[str, ...] = (
-    "tiktok",
+    "tiktok_oembed",     # User-supplied hashtags/creators via public oEmbed. ADR-0002.
+    "tiktok_discover",   # Community-scraped trending via antiops/tiktok-trending-data. ADR-0013.
     "x",
     "instagram",
     "facebook",

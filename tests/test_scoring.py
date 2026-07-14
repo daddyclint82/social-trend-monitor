@@ -50,11 +50,11 @@ def test_decay_halves_at_half_life():
 
 
 def test_cross_platform_groups():
-    t1 = make_trend(platform="tiktok", name="#AIart", trend_type="hashtag",
+    t1 = make_trend(platform="tiktok_oembed", name="#AIart", trend_type="hashtag",
                     platform_native_id="1", url=None, score=100)
     t2 = make_trend(platform="x", name="#aiart", trend_type="topic",
                     platform_native_id="2", url=None, score=200)
-    t3 = make_trend(platform="tiktok", name="#cats", trend_type="hashtag",
+    t3 = make_trend(platform="tiktok_oembed", name="#cats", trend_type="hashtag",
                     platform_native_id="3", url=None, score=50)
     groups = cross_platform_groups([t1, t2, t3])
     assert "aiart" in groups
@@ -64,13 +64,13 @@ def test_cross_platform_groups():
 
 
 def test_cross_platform_bonus_solo():
-    t = make_trend(platform="tiktok", name="x", trend_type="topic",
+    t = make_trend(platform="tiktok_oembed", name="x", trend_type="topic",
                    platform_native_id="1", url=None, score=1)
     assert cross_platform_bonus("x", [t]) == 1.0
 
 
 def test_cross_platform_bonus_multi():
-    t1 = make_trend(platform="tiktok", name="aiart", trend_type="topic",
+    t1 = make_trend(platform="tiktok_oembed", name="aiart", trend_type="topic",
                     platform_native_id="1", url=None, score=1)
     t2 = make_trend(platform="x", name="aiart", trend_type="topic",
                     platform_native_id="2", url=None, score=1)
@@ -81,7 +81,7 @@ def test_cross_platform_bonus_multi():
 
 def test_score_combines_factors():
     now = datetime.now(tz=timezone.utc)
-    t = make_trend(platform="tiktok", name="aiart", trend_type="topic",
+    t = make_trend(platform="tiktok_oembed", name="aiart", trend_type="topic",
                    platform_native_id="1", url=None, score=100.0)
     history = [
         {"captured_at": (now - timedelta(days=1)).isoformat(), "score": 50},

@@ -24,7 +24,7 @@ def client(tmp_path: Path) -> TestClient:
     # Insert some test data
     now = datetime.now(tz=timezone.utc)
     t1 = make_trend(
-        platform="tiktok", name="#aiart", trend_type="hashtag",
+        platform="tiktok_oembed", name="#aiart", trend_type="hashtag",
         platform_native_id="1", url="https://example.com/1", score=1000.0,
     )
     t1.signals = [TrendSignal(captured_at=now, score=1000.0, rank=1)]
@@ -34,12 +34,12 @@ def client(tmp_path: Path) -> TestClient:
     )
     t2.signals = [TrendSignal(captured_at=now, score=500.0, rank=2)]
     t3 = make_trend(
-        platform="tiktok", name="#cats", trend_type="hashtag",
+        platform="tiktok_oembed", name="#cats", trend_type="hashtag",
         platform_native_id="3", url=None, score=50.0,
     )
     t3.signals = [TrendSignal(captured_at=now, score=50.0, rank=3)]
     storage.upsert_many([t1, t2, t3])
-    storage.record_run("tiktok", now, now, "success", 2)
+    storage.record_run("tiktok_oembed", now, now, "success", 2)
     storage.record_run("x", now, now, "success", 1)
 
     # Patch the _get_storage function in the routes module
@@ -71,11 +71,11 @@ def test_list_trends_all(client: TestClient):
 
 
 def test_list_trends_by_platform(client: TestClient):
-    resp = client.get("/api/trends?platform=tiktok")
+    resp = client.get("/api/trends?platform=tiktok_oembed")
     assert resp.status_code == 200
     trends = resp.json()
     assert len(trends) == 2
-    assert all(t["platform"] == "tiktok" for t in trends)
+    assert all(t["platform"] == "tiktok_oembed" for t in trends)
 
 
 def test_list_trends_min_score(client: TestClient):
@@ -100,7 +100,7 @@ def test_trends_by_platform_endpoint(client: TestClient):
 
 def test_get_trend_by_id(client: TestClient):
     # First, list to get an ID
-    resp = client.get("/api/trends?platform=tiktok&limit=1")
+    resp = client.get("/api/trends?platform=tiktok_oembed&limit=1")
     trend_id = resp.json()[0]["id"]
 
     resp = client.get(f"/api/trend/{trend_id}")
@@ -124,11 +124,11 @@ def test_list_runs(client: TestClient):
 
 
 def test_list_runs_by_platform(client: TestClient):
-    resp = client.get("/api/runs?platform=tiktok")
+    resp = client.get("/api/runs?platform=tiktok_oembed")
     assert resp.status_code == 200
     runs = resp.json()
     assert len(runs) == 1
-    assert runs[0]["platform"] == "tiktok"
+    assert runs[0]["platform"] == "tiktok_oembed"
 
 
 def test_groups_endpoint(client: TestClient):
@@ -137,8 +137,8 @@ def test_groups_endpoint(client: TestClient):
     resp = client.get("/api/groups")
     assert resp.status_code == 200
     groups = resp.json()
-    # aiart appears on tiktok + x → one group; cats → another group
+    # aiart appears on tiktok_oembed + x → one group; cats → another group
     assert len(groups) == 2
     aiart_group = next(g for g in groups if "aiart" in g["canonical_name"].lower())
     assert aiart_group["member_count"] == 2
-    assert sorted(aiart_group["platforms"]) == ["tiktok", "x"]
+    assert sorted(aiart_group["platforms"]) == ["tiktok_oembed", "x"]

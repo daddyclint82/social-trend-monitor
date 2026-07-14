@@ -43,7 +43,7 @@ class TikTokOEmbedCollector(BaseCollector):
       watchlists with trends from other platforms that *do* have discovery.
     """
 
-    platform = "tiktok"
+    platform = "tiktok_oembed"
     timeout_s = 10.0
 
     async def collect(self) -> list[Trend]:
@@ -59,7 +59,7 @@ class TikTokOEmbedCollector(BaseCollector):
                 # Even on failure, record the intent
                 trends.append(
                     make_trend(
-                        platform="tiktok",
+                        platform="tiktok_oembed",
                         name=url.rstrip("/").split("/")[-1],
                         trend_type="creator",
                         platform_native_id=url,
@@ -92,7 +92,7 @@ class TikTokOEmbedCollector(BaseCollector):
         clean = hashtag.lstrip("#")
         url = f"https://www.tiktok.com/tag/{clean}"
         return make_trend(
-            platform="tiktok",
+            platform="tiktok_oembed",
             name=f"#{clean}",
             trend_type="hashtag",
             platform_native_id=clean,
@@ -107,7 +107,7 @@ class TikTokOEmbedCollector(BaseCollector):
         title = payload.get("title", "")
         url = payload.get("url") or original_url
         return make_trend(
-            platform="tiktok",
+            platform="tiktok_oembed",
             name=f"@{author}",
             trend_type="creator",
             platform_native_id=url,

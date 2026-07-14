@@ -216,7 +216,7 @@ class Storage:
         """List recent trends, newest first.
 
         Filters:
-            platform:    tiktok | x | google_trends | youtube | ... (optional)
+            platform:    tiktok_oembed | tiktok_discover | x | google_trends | youtube | ... (optional)
             trend_type:  hashtag | sound | search | video | ... (optional,
                          ADR-0013: lets the LLM CLI select per-type trends)
             limit:       max rows (default 100)

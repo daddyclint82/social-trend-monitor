@@ -730,3 +730,98 @@ sell:
 ---
 
 *End of decision log. Add new ADRs at the bottom, never rewrite above.*
+
+## ADR-0014: Namespace the two TikTok collectors (2026-07-13)
+
+**Context:** As of v0.4 alpha, two independent collectors target TikTok:
+- `TikTokOEmbedCollector` — user-supplied hashtags/creators via public
+  oEmbed endpoint (Tier 1, since v0.1). Returns 0 scores, no discovery.
+- `TikTokDiscoverCollector` — community-scraped trending list via the
+  `antiops/tiktok-trending-data` GitHub repo (Tier 2, added with the
+  free-sources integration in ADR-0013). Returns real trending hashtags
+  and sounds, refreshed every ~6h.
+
+Both collectors were registered under the same `platform = "tiktok"`
+class attribute. The auto-discovery registry's `_classes` dict uses
+`platform` as its key, so the second collector to register was
+**silently shadowed** by the first. The orchestrator logged a warning
+(`registry.duplicate_platform`) but proceeded with only the first
+class for that platform key.
+
+**Symptoms observed (2026-07-13 health check):**
+- `orchestrator.initialized` log: `collectors: ["apify", "facebook",
+  "google_trends", "instagram", "reddit", "tiktok", "tiktok", "x",
+  "youtube"]` — `tiktok` appeared twice, masking the second collector.
+- `TikTokDiscoverCollector` never wrote trends to the DB on real
+  collection cycles.
+- DB filter `list_trends(platform="tiktok")` could not distinguish
+  between user-supplied watchlist data and community trending data.
+
+**Decision:** Split the canonical platform namespace:
+- `TikTokOEmbedCollector.platform = "tiktok_oembed"`
+- `TikTokDiscoverCollector.platform = "tiktok_discover"`
+- `PLATFORMS` tuple in `src/normalizer/schema.py` updated to include
+  both new keys. The legacy generic `"tiktok"` is removed.
+
+**Cross-platform grouping impact:** None. The `make_cross_platform_key`
+function in `schema.py` normalizes the trend name (lowercase, strip
+`#`/`@`) and prefixes it with the platform key. The two tiktok
+collectors' trends will still group together when their names match
+(e.g. user-supplied `#aiart` and discover-trending `#aiart`) because
+the `_normalize_name` step ignores the platform prefix when comparing
+group members. The `LightweightGrouper` already does this via
+`SequenceMatcher` on normalized names.
+
+**Alternatives considered:**
+- **Keep one `"tiktok"` key, tag with `metadata["source"]`** —
+  rejected: still forces the user to filter on metadata to tell
+  watchlist data from trending data, and the registry shadowing bug
+  remains.
+- **Use one collector that internally dispatches to oembed or
+  discover** — rejected: violates the auto-discovery contract
+  (one collector per file, one platform key per collector). The
+  whole point of the registry is to let collectors be added without
+  touching a central dispatcher.
+- **Only ship `tiktok_discover`, drop `tiktok_oembed`** — rejected:
+  the discover path is community-scraped and can go dark if the
+  upstream GitHub repo dies. The oembed path is the durable
+  fallback that always works as long as the user has a list of
+  hashtags to track.
+
+**Migration / backfill:** The 23 historical `platform="tiktok"`
+trends and 9 `collection_runs` rows in `data/trends.db` were
+backfilled to `tiktok_oembed` via a one-time sqlite UPDATE
+(non-destructive, unambiguous — oembed was the only writer at the
+time). The migration is documented in the commit message and the
+`hot` command now correctly shows both tiktok sub-platforms as
+distinct members of cross-platform groups.
+
+**Tests added:**
+- `test_registry.py::test_tiktok_oembed_and_discover_both_register`
+  — regression test that fails if either collector is missing
+- `test_registry.py::test_all_collectors_have_unique_platform` —
+  updated to print which platform keys collided
+- All 7 test files that used `"tiktok"` as a platform string in
+  `make_trend` fixtures updated to `"tiktok_oembed"`
+
+**Implementation:**
+- `src/normalizer/schema.py` — `PLATFORMS` tuple, comments
+- `src/collectors/platforms/tiktok.py` — `platform = "tiktok_oembed"`,
+  3 `make_trend` calls
+- `src/collectors/platforms/tiktok_discover.py` — `platform = "tiktok_discover"`,
+  1 `make_trend` call
+- `src/cli.py` — `--platform` choices in `list`, `inspect`, `llm-formats`;
+  new `_default_serve_interval` helper that scans all enabled collectors
+  instead of hard-coding `tiktok`
+- `src/storage/db.py` — docstring updated
+- `config/default.yaml` — `tiktok` block split into `tiktok_oembed` and
+  `tiktok_discover`; discover poll interval = 360min to match upstream
+  6h refresh
+- `tests/` — 7 test files updated to use new platform strings
+- Tests: 233 → 234 (1 new regression test)
+
+**Live verified:** 142 trends across 3 platforms in the local DB after
+a single `collect` cycle. `cli hot` shows 5 cross-platform groups with
+both `tiktok_oembed(2)` and `tiktok_discover(2)` as members — proving
+both collectors now run side-by-side and contribute to the same
+cross-platform grouping logic.

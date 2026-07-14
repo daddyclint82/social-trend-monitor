@@ -48,11 +48,11 @@ async def test_group_fallback_exact_when_ollama_unavailable():
     grouper = SemanticGrouper(base_url="http://localhost:99999")
     grouper._available = False  # skip the check
 
-    t1 = make_trend(platform="tiktok", name="#AIart", trend_type="hashtag",
+    t1 = make_trend(platform="tiktok_oembed", name="#AIart", trend_type="hashtag",
                     platform_native_id="1", url=None, score=100)
     t2 = make_trend(platform="x", name="#aiart", trend_type="topic",
                     platform_native_id="2", url=None, score=200)
-    t3 = make_trend(platform="tiktok", name="#cats", trend_type="hashtag",
+    t3 = make_trend(platform="tiktok_oembed", name="#cats", trend_type="hashtag",
                     platform_native_id="3", url=None, score=50)
 
     groups = await grouper.group([t1, t2, t3])
@@ -84,11 +84,11 @@ async def test_group_by_embedding_with_mock():
 
     grouper.embed = AsyncMock(side_effect=mock_embed)
 
-    t1 = make_trend(platform="tiktok", name="#AIart", trend_type="hashtag",
+    t1 = make_trend(platform="tiktok_oembed", name="#AIart", trend_type="hashtag",
                     platform_native_id="1", url=None, score=100)
     t2 = make_trend(platform="x", name="AI art", trend_type="topic",
                     platform_native_id="2", url=None, score=200)
-    t3 = make_trend(platform="tiktok", name="#cats", trend_type="hashtag",
+    t3 = make_trend(platform="tiktok_oembed", name="#cats", trend_type="hashtag",
                     platform_native_id="3", url=None, score=50)
 
     groups = await grouper.group([t1, t2, t3], threshold=0.75)
@@ -109,7 +109,7 @@ async def test_group_empty_list():
 
 
 def test_trend_group_to_dict():
-    t1 = make_trend(platform="tiktok", name="#test", trend_type="hashtag",
+    t1 = make_trend(platform="tiktok_oembed", name="#test", trend_type="hashtag",
                     platform_native_id="1", url=None, score=100)
     g = TrendGroup(
         canonical_name="#test",

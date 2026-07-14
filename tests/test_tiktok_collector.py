@@ -26,7 +26,7 @@ def _make_collector(config: dict) -> tuple[TikTokOEmbedCollector, MagicMock]:
 def test_hashtag_to_trend_strips_hash():
     t = TikTokOEmbedCollector._hashtag_to_trend("#aiart")
     assert t.name == "#aiart"
-    assert t.platform == "tiktok"
+    assert t.platform == "tiktok_oembed"
     assert t.score == 0.0
     assert t.metadata["source"] == "user-supplied"
     assert t.metadata["discoverable"] is False
@@ -46,7 +46,7 @@ def test_oembed_to_trend_extracts_author():
         "html": "<iframe ...></iframe>",
     }
     t = TikTokOEmbedCollector._oembed_to_trend(payload, payload["url"])
-    assert t.platform == "tiktok"
+    assert t.platform == "tiktok_oembed"
     assert t.name == "@cool_creator"
     assert t.metadata["source"] == "oembed"
     assert t.metadata["title"] == "My video"

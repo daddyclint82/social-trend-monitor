@@ -72,12 +72,12 @@ def test_group_exact_match_clusters():
     trends = [
         _t("bryan cranston", "google_trends"),
         _t("Bryan Cranston", "x"),
-        _t("bryan cranston", "tiktok"),
+        _t("bryan cranston", "tiktok_oembed"),
     ]
     groups = g.group(trends)
     assert len(groups) == 1
     assert groups[0].member_count == 3
-    assert groups[0].platforms == {"google_trends", "x", "tiktok"}
+    assert groups[0].platforms == {"google_trends", "x", "tiktok_oembed"}
 
 
 def test_group_punctuation_variants_cluster():
@@ -97,7 +97,7 @@ def test_group_case_variants_cluster():
     trends = [
         _t("TAYLOR SWIFT", "google_trends"),
         _t("taylor swift", "x"),
-        _t("Taylor Swift", "tiktok"),
+        _t("Taylor Swift", "tiktok_oembed"),
     ]
     groups = g.group(trends)
     assert len(groups) == 1
@@ -250,7 +250,7 @@ def test_group_with_actual_google_trends_data():
         _t("bryan cranston", "google_trends", score=6.0),
         _t("bryan cranston", "google_trends", score=5.0),
         # Plus one TikTok hashtag
-        _t("#bryancranston", "tiktok", score=100.0),
+        _t("#bryancranston", "tiktok_oembed", score=100.0),
         # Different celebrities stay separate
         _t("cody bellinger", "google_trends", score=5.0),
         _t("juan soto", "google_trends", score=6.0),
@@ -259,7 +259,7 @@ def test_group_with_actual_google_trends_data():
     # The bryan cranston group has 5 members (4 Google + 1 TikTok)
     bryan_group = next(g for g in groups if "bryan" in g.canonical_name.lower())
     assert bryan_group.member_count == 5
-    assert bryan_group.platforms == {"google_trends", "tiktok"}
+    assert bryan_group.platforms == {"google_trends", "tiktok_oembed"}
     # Cody and Juan each in their own group
     solo_groups = [g for g in groups if g.member_count == 1]
     assert len(solo_groups) == 2

@@ -96,14 +96,14 @@ def test_sigmoid_monotonic():
 
 def test_compute_platform_stats_separates_platforms():
     """Trends on different platforms are NOT mixed in the same stats bucket."""
-    t1 = make_trend(platform="tiktok", name="#a", trend_type="hashtag",
+    t1 = make_trend(platform="tiktok_oembed", name="#a", trend_type="hashtag",
                     platform_native_id="1", url="", score=10.0)
     t2 = make_trend(platform="youtube", name="vid", trend_type="video",
                     platform_native_id="2", url="", score=1_000_000.0)
     stats = compute_platform_stats([t1, t2])
-    assert "tiktok" in stats and "youtube" in stats
-    # tiktok median is 10, not affected by the YouTube 1M
-    assert stats["tiktok"]["median"] == 10.0
+    assert "tiktok_oembed" in stats and "youtube" in stats
+    # tiktok_oembed median is 10, not affected by the YouTube 1M
+    assert stats["tiktok_oembed"]["median"] == 10.0
     assert stats["youtube"]["median"] == 1_000_000.0
 
 
@@ -139,7 +139,7 @@ def test_normalize_score_above_median_higher_than_below():
 
 
 def test_normalize_trends_returns_list_of_dicts():
-    t1 = make_trend(platform="tiktok", name="#a", trend_type="hashtag",
+    t1 = make_trend(platform="tiktok_oembed", name="#a", trend_type="hashtag",
                     platform_native_id="1", url="", score=10.0)
     t2 = make_trend(platform="youtube", name="b", trend_type="video",
                     platform_native_id="2", url="", score=5000.0)
@@ -188,10 +188,10 @@ def test_normalize_trends_uses_external_stats():
     trends being scored (useful for stable scores across queries)."""
     # Two different "worlds" of trends with the same platform mix
     stats = {
-        "tiktok": {"median": 0.0, "mad": 1.0, "n": 100.0, "min": 0.0, "max": 100.0},
+        "tiktok_oembed": {"median": 0.0, "mad": 1.0, "n": 100.0, "min": 0.0, "max": 100.0},
         "youtube": {"median": 10000.0, "mad": 5000.0, "n": 50.0, "min": 0.0, "max": 1_000_000.0},
     }
-    t1 = make_trend(platform="tiktok", name="a", trend_type="hashtag",
+    t1 = make_trend(platform="tiktok_oembed", name="a", trend_type="hashtag",
                     platform_native_id="1", url="", score=5.0)
     out = normalize_trends([t1], stats=stats)
     # z = 0.6745 * (5 - 0) / 1 = 3.3725
