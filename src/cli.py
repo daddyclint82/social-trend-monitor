@@ -87,14 +87,19 @@ async def _cmd_serve(args: argparse.Namespace) -> int:
 def _cmd_list(args: argparse.Namespace) -> int:
     _orch, cfg, storage = _make_orchestrator()
     try:
-        trends = storage.list_trends(platform=args.platform, limit=args.limit, min_score=args.min_score)
+        trends = storage.list_trends(
+            platform=args.platform,
+            trend_type=getattr(args, "trend_type", None),
+            limit=args.limit,
+            min_score=args.min_score,
+        )
         if args.json:
             print(json.dumps(trends, indent=2, default=str))
         else:
             for t in trends:
                 rank_str = f"  rank={t.get('latest_rank')}" if t.get("latest_rank") else ""
                 print(
-                    f"[{t['platform']:9s}] {t['name'][:40]:40s} score={t.get('latest_score', 0):>12.1f}{rank_str}  ({t['last_seen']})"
+                    f"[{t['platform']:14s}/{t.get('trend_type', '?'):8s}] {t['name'][:50]:50s} score={t.get('latest_score', 0):>12.1f}{rank_str}  ({t['last_seen']})"
                 )
         return 0
     finally:
@@ -179,24 +184,56 @@ async def _cmd_llm_formats(args: argparse.Namespace) -> int:
             )
             return 1
 
-        # Get current trends
-        trends = storage.list_trends(limit=args.limit)
+        # Get current trends (with optional filters)
+        trends = storage.list_trends(
+            platform=getattr(args, "platform", None),
+            trend_type=getattr(args, "trend_type", None),
+            limit=args.limit,
+        )
         if not trends:
             print("No trends in storage. Run 'collect' first.")
             return 0
 
-        items = [
-            {
-                "trend_id": t["id"],
-                "platform": t["platform"],
-                "hashtag": t["name"],
-                "post_descriptions": [],  # v2: collectors don't store captions yet
-            }
-            for t in trends
-        ]
+        items = []
+        for t in trends:
+            trend_type = t.get("trend_type", "hashtag")
+            # Build the per-type context dict for prompt construction
+            # (ADR-0013: search and video prompts need extra fields)
+            meta = t.get("metadata") or {}
+            context: dict = {}
+            if trend_type == "search":
+                # Google Trends: region + pub_date for the prompt
+                context["region"] = meta.get("geo", "")
+                context["pub_date"] = meta.get("pub_date", "")
+            elif trend_type == "video":
+                # YouTube: channel + category + views + pub_date
+                context["channel"] = meta.get("channel", "")
+                context["category"] = meta.get("category_id", "")
+                context["region"] = meta.get("region", "")
+                context["views"] = meta.get("view_count", "")
+                context["pub_date"] = meta.get("published_at", "")
+            # hashtag + sound: no extra context, just post_descriptions below
+
+            # For Google Trends 'search' trends, the news headlines go in
+            # post_descriptions. For others, we don't have descriptions yet.
+            descriptions: list[str] = []
+            if trend_type == "search":
+                descriptions = list(meta.get("news_titles") or [])
+
+            items.append(
+                {
+                    "trend_id": t["id"],
+                    "platform": t["platform"],
+                    "name": t["name"],
+                    "trend_type": trend_type,
+                    "post_descriptions": descriptions,
+                    "context": context,
+                }
+            )
         results = await extractor.extract_batch(items)
         for r in results:
-            print(f"[{r.platform}] {r.hashtag}")
+            label = f"[{r.platform}/{r.trend_type}]"
+            print(f"{label} {r.hashtag}")
             print(f"  Format: {r.format_summary}")
             if r.patterns:
                 print(f"  Patterns: {r.patterns}")
@@ -262,7 +299,18 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.set_defaults(func=_cmd_serve, is_async=True)
 
     p_list = sub.add_parser("list", help="List current trends")
-    p_list.add_argument("--platform", choices=("tiktok", "x", "instagram", "facebook"))
+    p_list.add_argument(
+        "--platform",
+        choices=(
+            "tiktok", "x", "instagram", "facebook",
+            "google_trends", "youtube", "reddit", "apify",
+        ),
+    )
+    p_list.add_argument(
+        "--trend-type",
+        choices=("hashtag", "sound", "search", "video", "topic", "format",
+                 "creator", "subreddit", "post"),
+    )
     p_list.add_argument("--limit", type=int, default=50)
     p_list.add_argument("--min-score", type=float, default=None)
     p_list.add_argument("--json", action="store_true")
@@ -282,6 +330,19 @@ def main(argv: list[str] | None = None) -> int:
 
     p_llm = sub.add_parser("llm-formats", help="Extract content formats via local LLM")
     p_llm.add_argument("--limit", type=int, default=20)
+    p_llm.add_argument(
+        "--trend-type",
+        choices=("hashtag", "sound", "search", "video"),
+        help="Filter trends to a specific type (ADR-0013). Default: all.",
+    )
+    p_llm.add_argument(
+        "--platform",
+        choices=(
+            "tiktok", "x", "instagram", "facebook",
+            "google_trends", "youtube", "reddit", "apify",
+        ),
+        help="Filter trends to a specific platform. Default: all.",
+    )
     p_llm.set_defaults(func=_cmd_llm_formats, is_async=True)
 
     p_groups = sub.add_parser("groups", help="Show cross-platform semantic groups")

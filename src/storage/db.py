@@ -209,14 +209,31 @@ class Storage:
     def list_trends(
         self,
         platform: str | None = None,
+        trend_type: str | None = None,
         limit: int = 100,
         min_score: float | None = None,
     ) -> list[dict]:
+        """List recent trends, newest first.
+
+        Filters:
+            platform:    tiktok | x | google_trends | youtube | ... (optional)
+            trend_type:  hashtag | sound | search | video | ... (optional,
+                         ADR-0013: lets the LLM CLI select per-type trends)
+            limit:       max rows (default 100)
+            min_score:   minimum latest_score (optional)
+
+        Each row dict includes a parsed `metadata` field (decoded from
+        metadata_json) so callers can use it directly without json.loads.
+        The raw `metadata_json` string is also kept for backward compat.
+        """
         sql = "SELECT * FROM trends WHERE 1=1"
         params: list = []
         if platform:
             sql += " AND platform = ?"
             params.append(platform)
+        if trend_type:
+            sql += " AND trend_type = ?"
+            params.append(trend_type)
         if min_score is not None:
             sql += " AND latest_score >= ?"
             params.append(min_score)
@@ -224,7 +241,19 @@ class Storage:
         params.append(limit)
         with self.cursor() as cur:
             cur.execute(sql, params)
-            return [dict(row) for row in cur.fetchall()]
+            rows = [dict(row) for row in cur.fetchall()]
+        # Parse metadata_json → metadata dict for caller convenience
+        # (ADR-0013: the LLM CLI needs parsed metadata to build context)
+        for r in rows:
+            raw = r.get("metadata_json")
+            if raw:
+                try:
+                    r["metadata"] = json.loads(raw)
+                except (ValueError, TypeError):
+                    r["metadata"] = {}
+            else:
+                r["metadata"] = {}
+        return rows
 
     def get_trend(self, trend_id: str) -> dict | None:
         with self.cursor() as cur:
