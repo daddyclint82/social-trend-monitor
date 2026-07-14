@@ -366,7 +366,7 @@ top posts from a trending hashtag and asks the local LLM:
 
 ## ADR-0011 — Reddit via official OAuth (script app), not the killed public JSON endpoint
 **Date:** 2026-07-13
-**Status:** Accepted
+**Status:** **REVISED 2026-07-13 evening** — Platform-level gate, deferred. See "Revised status" at the bottom.
 
 **Context:** The user requested Reddit trend discovery (r/all, r/popular,
 niche subreddits) using free/public sources. Historical Reddit collectors
@@ -441,6 +441,66 @@ and `/subreddits/popular` for trending-sub discovery).
   dependency. The Reddit OAuth flow is small enough to do with httpx.
 - PullPush (third-party Reddit archive API) — rejected: vendor dep,
   coverage gaps, doesn't expose `r/all/hot` real-time.
+
+---
+
+### Revised status (2026-07-13 evening, after live signup attempt)
+
+During end-to-end verification of the v0.3 release, the user attempted
+to register a Reddit script app via https://www.reddit.com/prefs/apps.
+The flow has changed in two ways since this ADR was originally written:
+
+1. **Legacy /prefs/apps script app path is policy-gated.** Reddit now
+   requires submission of the **Responsible Builder Policy** form
+   (https://support.reddithelp.com/hc/en-us/articles/42728983564564)
+   for any new script-type app registration. Approval is not
+   guaranteed and Reddit's response time is 2–8 weeks.
+
+2. **Devvit signup is incompatible with our use case.** Creating a
+   developer account at developers.reddit.com provisions a **Devvit**
+   (hosted React-in-Reddit-post) identity. This account does NOT get
+   script-app credentials via /prefs/apps — it gets a Devvit CLI
+   auth flow (`npm create devvit@latest`). Devvit requires apps to
+   run inside Reddit's hosting environment, which is incompatible
+   with our external Python CLI architecture (ADR-0001: Python 3.11+
+   + FastAPI + httpx). We cannot use Devvit for a local CLI tool.
+
+**Decision:** Defer Reddit activation to a future version. The
+collector code is shipped (tested, 24 unit tests) but the platform
+integration is gated until one of the following resolves:
+
+- (a) Responsible Builder Policy form approved, granting script-app
+  credentials via /prefs/apps (legacy path).
+- (b) Reddit provides an alternative external-API path for non-Devvit
+  developers (public statement required; none observed as of 2026-07-13).
+- (c) User acquires approved credentials through a different Reddit
+  account, network, or platform workaround.
+
+**In the meantime:**
+- Collector code: shipped at `src/collectors/platforms/reddit.py`
+- Tests: shipped at `tests/test_reddit_collector.py` (24 tests, 100% pass)
+- Default config: `collectors.reddit.enabled: false`
+- Enable in config once creds are obtained:
+  ```yaml
+  collectors:
+    reddit:
+      enabled: true
+  collector_options:
+    reddit:
+      client_id_env: REDDIT_CLIENT_ID      # or literal client_id
+      client_secret_env: REDDIT_SECRET    # or literal client_secret
+      poll_interval_min: 720              # 12h, per the RBP submission
+      feeds: ["/r/all/hot", "/r/popular"]
+      niche_subreddits: [12 default subs]
+  ```
+
+**Why we kept the code despite the platform gate:**
+- The collector is correct, complete, and tested.
+- Platform gates have lifted before.
+- The cost of carrying the code is 240 LOC + 24 tests; the cost of
+  rewriting it later if access is restored is much higher.
+- This is the same pattern as ADR-0002 (TikTok — Creative Center
+  blocked, kept oEmbed-based collector for future reactivation).
 
 ---
 

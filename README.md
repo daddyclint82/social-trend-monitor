@@ -1,7 +1,7 @@
 # Social Trend Monitor
 
 > **Status:** v0.3 alpha — v1 + LLM format extraction, FastAPI read API,
-> semantic cross-platform grouping, **Reddit trend discovery (OAuth)**,
+> semantic cross-platform grouping, **Reddit collector (deferred — platform gate)**,
 > **Apify vendor bridge for TikTok + Instagram (opt-in)**. 123/123 tests
 > passing. TikTok collector is still v1-limited (user-supplied hashtags,
 > no discovery) due to platform anti-bot gating. See ADR-0002.
@@ -58,19 +58,19 @@ choice. Highlights:
 | **X**       | Full discovery (paid API) | `GET /2/trends/by/woeid/:woeid` — bearer token required. |
 | **Instagram** | Public post metadata only | oEmbed for user-supplied URLs. Apify bridge for opt-in discovery. |
 | **Facebook** | Optional (your own pages) | Graph API with page tokens. No public discovery. |
-| **Reddit** | **NEW** — OAuth trend discovery | Official API via Reddit script app (free, 100 req/min). Public listings only. |
+| **Reddit** | **DEFERRED** — code shipped, platform-gated | See ADR-0011 "Revised status". |
 | **Apify** | **NEW** — opt-in vendor bridge | TikTok + Instagram via Apify Actors. Free tier ($5/mo). |
 
-**Reddit setup (one-time):**
-1. Visit https://www.reddit.com/prefs/apps
-2. Click "create app" → type **script**
-3. Set `redirect uri` to `http://localhost:8080` (required but not used)
-4. Copy the `client_id` (under the app name) and `client_secret` into your `.env`:
-   ```
-   REDDIT_CLIENT_ID=...
-   REDDIT_SECRET=...
-   ```
-5. Edit `config/default.yaml` (or `config/local.yaml`) and set `collectors.reddit.enabled: true`
+**Reddit status (2026-07-13):** The collector is built and tested
+(`src/collectors/platforms/reddit.py`, 240 LOC, 24 unit tests), but
+**disabled by default** due to platform changes. Two issues converged:
+the legacy `/prefs/apps` script app path now requires Reddit's
+[Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564)
+form approval (2–8 week review), and the new Devvit developer signup
+provisions hosted-React-app credentials only — incompatible with our
+external Python CLI architecture. The collector will activate
+immediately the moment a path opens. Full analysis: **ADR-0011
+"Revised status"**.
 
 **Apify setup (one-time, optional):**
 1. Sign up at https://apify.com (free tier = $5/month compute)

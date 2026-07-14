@@ -1,6 +1,6 @@
 ## ADR-0011 — Reddit via official OAuth (script app), not the killed public JSON endpoint
 **Date:** 2026-07-13
-**Status:** Accepted
+**Status:** **REVISED 2026-07-13 evening** — Platform-level gate, deferred. See "Revised status" at the bottom.
 
 **Context:** The user requested Reddit trend discovery (r/all, r/popular,
 niche subreddits) using free/public sources. Historical Reddit collectors

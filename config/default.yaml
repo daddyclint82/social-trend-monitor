@@ -15,8 +15,13 @@ collectors:
     enabled: false  # disabled by default — needs page tokens
     poll_interval_min: 60
   reddit:
-    enabled: false  # disabled by default — needs Reddit script app creds (ADR-0011)
-    poll_interval_min: 30
+    # DEFERRED 2026-07-13: legacy /prefs/apps script app path is now
+    # policy-gated (Responsible Builder Policy approval required);
+    # Devvit signup is incompatible with our external CLI use case.
+    # Collector code is shipped + tested; enable once creds are obtained.
+    # See ADR-0011 "Revised status" for full context.
+    enabled: false
+    poll_interval_min: 720  # 12h, per the RBP submission
   apify:
     enabled: false  # disabled by default — vendor dep + free tier limits (ADR-0012)
     poll_interval_min: 240  # 4h default — actors are slow + cost-guard friendly
