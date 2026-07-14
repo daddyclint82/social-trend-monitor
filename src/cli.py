@@ -287,6 +287,142 @@ def _cmd_groups(args: argparse.Namespace) -> int:
         storage.close()
 
 
+def _cmd_hot(args: argparse.Namespace) -> int:
+    """Show what's hot RIGHT NOW: top cross-platform trend groups.
+
+    Phase 0.3 (Trend Aggregator Improvement Ledger) — the morning deliverable.
+    Combines:
+    - per-platform score normalization (median + MAD z-score → [0, 1])
+    - lightweight cross-platform grouper (difflib SequenceMatcher)
+    - a single ranked list you can act on
+
+    Output (default text mode):
+        🔥 12 cross-platform groups from 74 trends
+        1. Bryan Cranston       │ 6.0/1.0 │ 5 members │ google_trends(4) + tiktok(1)
+        2. Taylor Swift         │ 5.4/1.0 │ 3 members │ google_trends(2) + youtube(1)
+        ...
+
+    Flags:
+    --hours N    only consider trends seen in the last N hours (default 168 = 1 week)
+    --limit N    max groups to show (default 20)
+    --threshold  group similarity threshold (default 0.85)
+    --json       output structured JSON for tooling
+    """
+    from datetime import datetime, timedelta, timezone
+    from .normalizer.schema import Trend
+    from .normalizer.lightweight_group import LightweightGrouper
+    from .scoring.normalize import (
+        compute_platform_stats,
+        normalize_trends,
+    )
+
+    _orch, cfg, storage = _make_orchestrator()
+    try:
+        # Pull a generous window of recent trends (we'll filter by hours below)
+        rows = storage.list_trends(limit=max(500, args.limit * 50))
+        now = datetime.now(tz=timezone.utc)
+        cutoff = now - timedelta(hours=args.hours)
+
+        trends: list[Trend] = []
+        for row in rows:
+            try:
+                t = Trend(
+                    id=row["id"],
+                    platform=row["platform"],
+                    name=row["name"],
+                    trend_type=row["trend_type"],
+                    url=row.get("url"),
+                    first_seen=datetime.fromisoformat(row["first_seen"]),
+                    last_seen=datetime.fromisoformat(row["last_seen"]),
+                    score=row.get("latest_score") or 0.0,
+                )
+            except Exception:
+                continue
+            if t.last_seen < cutoff:
+                continue
+            trends.append(t)
+
+        if not trends:
+            print(f"No trends in the last {args.hours}h. Run 'collect' or wait for overnight loop.")
+            return 0
+
+        # Step 1: per-platform stats from this batch
+        stats = compute_platform_stats(trends)
+
+        # Step 2: normalize scores
+        normalized = normalize_trends(trends, stats=stats)
+
+        # Step 3: group cross-platform
+        grouper = LightweightGrouper(threshold=args.threshold)
+        groups = grouper.group(trends)
+
+        # Step 4: rank groups by aggregate normalized score (sum of member normalized scores)
+        # plus a small bonus for cross-platform count (multi-platform = more real)
+        norm_by_id = {id(n["trend"]): n for n in normalized}
+        ranked = []
+        for g in groups:
+            agg_norm = 0.0
+            peak_norm = 0.0
+            for m in g.members:
+                n = norm_by_id.get(id(m))
+                if n:
+                    agg_norm += n["normalized_score"]
+                    peak_norm = max(peak_norm, n["normalized_score"])
+            # Cross-platform bonus: +0.1 per additional platform beyond the first
+            cp_bonus = 0.1 * max(0, len(g.platforms) - 1)
+            hot_score = agg_norm + cp_bonus
+            ranked.append({
+                "canonical_name": g.canonical_name,
+                "member_count": g.member_count,
+                "platforms": sorted(g.platforms),
+                "platform_breakdown": {
+                    p: sum(1 for m in g.members if m.platform == p)
+                    for p in g.platforms
+                },
+                "hot_score": round(hot_score, 3),
+                "peak_normalized": round(peak_norm, 3),
+                "members": [
+                    {
+                        "platform": m.platform,
+                        "name": m.name,
+                        "normalized": round(norm_by_id.get(id(m), {}).get("normalized_score", 0), 3),
+                        "raw_score": m.score,
+                    }
+                    for m in g.members
+                ],
+            })
+        ranked.sort(key=lambda x: x["hot_score"], reverse=True)
+        ranked = ranked[:args.limit]
+
+        if args.json:
+            print(json.dumps({
+                "window_hours": args.hours,
+                "trend_count": len(trends),
+                "group_count": len(ranked),
+                "platform_stats": {p: {k: round(v, 3) for k, v in s.items()}
+                                    for p, s in stats.items()},
+                "groups": ranked,
+            }, indent=2, default=str))
+            return 0
+
+        # Pretty text output
+        print(f"🔥 {len(ranked)} cross-platform groups from {len(trends)} trends "
+              f"(last {args.hours}h)")
+        print()
+        for i, g in enumerate(ranked, start=1):
+            breakdown = " + ".join(
+                f"{p}({n})" for p, n in g["platform_breakdown"].items()
+            )
+            print(
+                f"  {i:2}. {g['canonical_name'][:40]:40s} │ "
+                f"hot={g['hot_score']:.2f} │ peak_norm={g['peak_normalized']:.2f} │ "
+                f"{g['member_count']} members │ {breakdown}"
+            )
+        return 0
+    finally:
+        storage.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="social-trend-monitor")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -349,6 +485,22 @@ def main(argv: list[str] | None = None) -> int:
     p_groups.add_argument("--threshold", type=float, default=0.75)
     p_groups.add_argument("--limit", type=int, default=100)
     p_groups.set_defaults(func=_cmd_groups, is_async=False)
+
+    p_hot = sub.add_parser(
+        "hot",
+        help="Top cross-platform trends RIGHT NOW (the morning deliverable).",
+    )
+    p_hot.add_argument(
+        "--hours", type=int, default=168,
+        help="Only trends seen in the last N hours. Default 168 = 1 week.",
+    )
+    p_hot.add_argument("--limit", type=int, default=20, help="Max groups to show.")
+    p_hot.add_argument(
+        "--threshold", type=float, default=0.85,
+        help="Cross-platform grouping similarity threshold (0..1).",
+    )
+    p_hot.add_argument("--json", action="store_true", help="Output structured JSON.")
+    p_hot.set_defaults(func=_cmd_hot, is_async=False)
 
     args = parser.parse_args(argv)
     if getattr(args, "is_async", False):

@@ -86,13 +86,20 @@ def score(
     history: list[dict],
     all_trends: list[Trend],
     now: datetime | None = None,
+    normalized_base: float | None = None,
 ) -> float:
     """Compute the final score for a trend.
 
     score = base * decay * cross_platform_bonus * (1 + velocity)
+
+    `base` defaults to the raw `trend.score` for backward compat, but
+    callers should pass `normalized_base` (from `scoring.normalize.normalize_trends`)
+    to make cross-platform ranking meaningful. With raw scores, a
+    YouTube 100K-view video (score=100000) outranks a Google Trends
+    peak (score=6) trivially. With normalized_base, both are in [0, 1].
     """
     now = now or datetime.now(tz=timezone.utc)
-    base = float(trend.score)
+    base = float(normalized_base) if normalized_base is not None else float(trend.score)
     d = decay(trend.last_seen, now=now)
     bonus = cross_platform_bonus(trend.normalized_name, all_trends)
     v = velocity(history, now=now)
